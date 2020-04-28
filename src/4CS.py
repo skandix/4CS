@@ -1,39 +1,46 @@
 import requests
 import json
+import re
 
 from fake_useragent import UserAgent
 from datetime import datetime
 from loguru import logger # best fucking log lib
 from os import getcwd
 
+valid_search_type = ['img', 'text', 'links']
+
 class fourCS:
 	"""
 	params:
 		board: specify the board you want to fetch things from
 		path: path to store data, if none is specified, use cwd
-		file_type: link,text or img
+		search_type: link,text or img
 		extension: file extension
 		search:  search string
 	"""
-	def __init__(self, board, path, file_type, extension, search):
+	
+
+	def __init__(self, board, path, search_type, extension, search):
 		self.board = board
 		self.path = path
 		if self.path is None:
 			self.path = f"{getcwd()}"
 
-		self.file_type = file_type
+		self.search_type = search_type
+		if self.search_type not in valid_search_type:
+			logger.error(f'Please Supply a Valid Search Type.\nAvaliable Search Types {valid_search_type}')
+
 		self.extension = extension
 		self.search = search
-		self.debug = False
 		self.boards_api = "https://a.4cdn.org/boards.json"
-		self.thread_api = "https://a.4cdn.org/po/catalog.json"
 		self.session = requests.Session()
 
 		self.user_agent = UserAgent()
 		self.session.headers.update({'User-Agent': self.user_agent.random})
 
 	def fetch_boards(self):
-		avaliable_board = (list([board_name['board'] for board_name in self.session.get(self.boards_api).json()['boards']]))
+		""" Fetch alll imageboard on 4chan """
+		avaliable_board = (list([board_name['board'] for board_name in self.session.get(self.boards_api).json()['boards']])) # FUCK LONG BOII
 		if self.board in avaliable_board:
 			logger.info(f"Found {self.board} in list of boards")
 
@@ -41,41 +48,79 @@ class fourCS:
 			logger.error(f"Can't find {self.board} in list of boards, please select on that does exists")
 
 
-	def fetch_threads(self, thread_id:int):
+	def fetch_threads(self):
+		""" Fetch all threads from a specific board on 4chan """
+		threads = f"https://a.4cdn.org/{self.board}/threads.json"
+
+		for thread_collection in self.session.get(threads).json():
+			for thread in (thread_collection['threads']):
+				yield thread
+
+	def fetch_specific_thread(self, thread_id:int):
+		""" Fetch all data from a specific thread """
+
 		#avaliable_board = (list([j['board'] for j in self.session.get(self.boards_api).json()['boards']]))
 		#https://a.4cdn.org/b/thread/826294846.json
+
 		thread = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
-		thread_pages = [page for page in (self.session.get(thread).json()['posts'])]
-		avaliable_threads = [thread['no'] for thread in thread_pages]
-		
-		print (avaliable_threads)
 
+		try: 
+			for thread_page in (self.session.get(thread).json()['posts']):
+				if self.search_type == 'img':
+					try:
+						return (f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}")
+					except KeyError as Error: # this usually means that the post doesn't have the key, meaning it doesn't contain an image  
+						pass
+					
 
-	def fetch_specific_thread():
-		pass
+				elif self.search_type == 'text':
+					try:
+						yield (self.sanitize_text(thread_page['com']))
+					except KeyError as Error:
+						pass
 
-	def fetch_api(self):
-		return (session.get())
-		"""
-		global function to get data from api,
-		and serve it a fake useragent :)
-		as i don't want to get fingerprinted
-		"""
-		
-		pass
+				elif self.search_type == 'links':
+					try:
+						clean_text = self.sanitize_text(thread_page['com'])
+						links = (self.find_urls(clean_text))
 
-	def download(self, url:str, filename:str):
-		"""
-		pass in urls for to be downloaded
-		"""
+						#if type(links) == str:
+						return (links)
+
+					except KeyError as Error:
+						pass
+					
+		except json.decoder.JSONDecodeError as e: #this is usually due to that the thread is not existsing.
+			pass
+
+	def sanitize_text(self, loot:str):
+		""" sanitize text if strange unicode happens """
+		#pattern = re.compile(u'(?:<style.+?>.+?</style>|<script.+?>.+?</script>|<(?:!|/?[a-zA-Z]+).*?/?>|&gt;&gt;\d{9,})')
+		#pattern = u'(</blockquote|</div|>|<div class|<span class|<a href|<hr|<br|<wbr|&lt;3|&quot;|&gt;|</a|class=\"|quotelink\"p[0-9]{9}|=\"deadlink\"[0-9]{9}|</span|=\"quote\")'
+		pattern = u'(<a href=\"#p[0-9]{9}\" class=\"quotelink\">&gt;&gt;[0-9]{9}</a>|<br>|<span class=\"quote\">|&gt;|</span>|<span class="deadlink">|&quot;|[\n])'
+		no_html = re.sub(pattern, '', loot)
+
+		fix_apostrophe = re.compile(u'(&#039;)')
+		return re.sub(fix_apostrophe, "'", no_html)
+		#return (loot)
+
+	def remove_urls(self, loot):
+		pattern = re.compile(u'(https?|ftp|http)://[^\s/$.?#].[^\s]*')
+		return (re.sub(pattern, '', loot))
+
+	def find_urls(self, loot):
+		pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#].[^\s]*)')
+		match = re.search(pattern, loot)
+		if type(match) == str:			
+			return (match).group(0)
+
+	def download(self, url):
+		""" pass in urls for to be downloaded """
 		from shutil import copyfileobj
-		if "http" or "https" not in url:
-			url = f"https://{url}"
-		stream_data = self.session.get(url, stream=True)
-
-		with open(filename, 'wb+') as file:
-			copyfileobj(stream.raw, filename)
-
+		
+		filename = (url.split('/')[-1])
+		#with open(filename, 'wb+') as file:
+		#copyfileobj(, filename)
 		pass
 
 	def times_stomper():
@@ -91,43 +136,11 @@ class fourCS:
 		"""
 		pass
 
-	def valid_boards(self):
-		fetch_api()
-
-
 	def dupe_checker():
 		"""
 		checking if file exsists already or not..
 		"""
 		pass
-
-	def sanitize():
-		"""
-		sanitize text if strange unicode happens
-		"""
-		pass
-
-	def get_links(loot:str, action:str):
-		""" get all the links from a text with the use of regex... """
-
-		if action == "del":
-			pattern = re.compile(u'(https?|ftp|http)://[^\s/$.?#].[^\s]*')
-			return re.sub(pattern, '', loot)
-	
-		elif action == "find":
-			pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#].[^\s]*)')
-			match = re.search(pattern, loot)
-			if match:
-				return (match).group(0)
-		else:
-			return (f"Please enter a valid Action!")
-
-	def get_images(loot:str):
-		pass
-
-	def get_text(loot:str):
-		pass
-
 
 	def generate_directories(foldername:str):
 		"""
@@ -147,20 +160,7 @@ class fourCS:
 
 
 if __name__ == '__main__':
-
-	import argparse
-	
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--board", "-b", type=str, help="")
-	parser.add_argument("--path", "-p", type=str, help="Set a specific path to download to")
-	parser.add_argument("--type", "-t", type=str, help="set a specific type to download (img, text or links)")
-	parser.add_argument("--ext", "-e", type=str, help="download a specific image extension, only works for img type downloads")
-	parser.add_argument("--search", "-s", type=str, help="search for a specific board [EXPERIMENTAL]")
-	parser.add_argument("--debug", "-d", type=bool, help="will print thread ID for debugging purposes")
-	args = parser.parse_args()
-	
-	# board, path, file_type, extension, search
-	scraper = fourCS('b', None, 'img', '', 'github')
-	#scraper = fourCS(args.board, args.path, args.type,  args.ext, args.search)
-	#scraper.fetch_boards()
-	print (scraper.fetch_threads(826294846))
+	scraper = fourCS('b', None, 'links', '', 'github')
+	for thread in (scraper.fetch_threads()):
+		for post in (scraper.fetch_specific_thread(thread['no'])):
+			print (post)

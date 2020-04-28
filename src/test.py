@@ -1,4 +1,4 @@
-from os import getcwd
+a = "https://i.4cdn.org/b/1588050332254.jpg"
 
-print (getcwd())
+print (type(a) == str)
 
