@@ -9,19 +9,11 @@ from datetime import datetime
 from loguru import logger # best fucking log lib
 
 valid_search_type = ['img', 'text', 'links']
+
 logger.add('../logs/4CS_Error.log', rotation='1 Week', compression='zip', level='ERROR')
 logger.add('../logs/4CS.log', rotation='1 Week', compression='zip', level='INFO')
 
 class fourCS:
-	"""
-	params:
-		board: specify the board you want to fetch things from
-		path: path to store data, if none is specified, use cwd
-		search_type: link,text or img
-		extension: file extension
-		search:  search string
-	"""
-
 	def __init__(self, board, path, search_type, extension, search):
 		self.board = board
 		self.path = path
@@ -29,15 +21,16 @@ class fourCS:
 		self.extension = extension
 		self.search = search
 
-		# Variable Checks
+		self._valid_data = []
+		self._empty_threads = []
+
 		if self.path == '':
-			self.path = f"{os.getcwd()}"
+			self.path = '../dl/'
 		
 		if self.search_type not in valid_search_type:
 			logger.error(f'Please Supply a Valid Search Type.\nAvaliable Search Types {valid_search_type}')
 			quit()
 
-		# Session & User Agent
 		self.session = requests.Session()
 		self.user_agent = UserAgent()
 		self.session.headers.update({'User-Agent': self.user_agent.random})
@@ -60,12 +53,11 @@ class fourCS:
 			for thread_page in (self.session.get(thread).json()['posts']):
 				if self.search_type == 'img':
 					# TODO: implement searching the threads for specific keywords..
-					#if self.search:
-						#if re.search(self.search,"sdafasdf",flags=re.I):
-					#	pass
-					#elif self.search == '':
 					try:
-						yield (f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}")
+						if self.extension == thread_page['ext']:
+							yield (f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}")
+						elif self.extension == "":
+							yield (f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}")
 					except KeyError as Error: # this usually means that the post doesn't have the key, meaning it doesn't contain an image
 						pass
 
@@ -92,8 +84,10 @@ class fourCS:
 		""" sanitize text if strange unicode happens """
 		# someone have a more efficient regex that this that works, please make a pr accordingly.		
 		pattern = u'(<a href=\"#p[0-9]{9}\" class=\"quotelink\">&gt;&gt;[0-9]{9}</a>|<br>|<span class=\"quote\">|&gt;|</span>|<span class="deadlink">|&quot;|[\n]|<a href=[\"\S\"]+ class=[\"\S\"]+</a>|<wbr>)'
+		#pattern = u'(<[\w]+>|</[\w]+)'
+		#pattern = u'(<[\w]+>|</[\w]+>|<a href=[\"\#p\d{9}]+ class\=\"quotelink\">)'
+		#pattern = u'(<[\w]+>|</[\w]+>|<a href=[\"\#p\d{9}]+ class\=\"quotelink\">&gt;&gt;[0-9]{8,}>|<wbr>|</wbr>)'
 		no_html = re.sub(pattern, '', loot)
-
 		fix_apostrophe = re.compile(u'(&#039;)')
 		return re.sub(fix_apostrophe, "'", no_html)
 
@@ -108,12 +102,27 @@ class fourCS:
 		if match:
 			return (match.group(0))
 
-	def download(self, url):
-		""" pass in urls for to be downloaded """		
-		filename = (url.split('/')[-1])
-		stream = (requests.get(url, stream=True))
-		with open(filename, 'wb+') as file:
-			shutil.copyfileobj(stream.raw, file)
+	def download(self, content):
+		if self.search_type == "img":	
+			filename = (content.split('/')[-1])
+			stream = (requests.get(content, stream=True))
+			with open(filename, 'wb+') as file:
+				shutil.copyfileobj(stream.raw, file)
+
+		elif self.search_type == "links":
+			""" Write each link to the thread """ 
+			filename = "Links.txt"
+			with open(filename, 'w+') as file:
+				file.write(str(content))
+				#shutil.copyfileobj(stream.raw, file)
+		
+
+		elif self.search_type == "text":
+			""" Write each text to the thread """ 
+			filename = "Text.txt"
+			with open(filename, 'w+') as file:
+				file.write(str(content))
+				file.write(str("\n"))
 
 	def times_stomper():
 		from datetime import datetime
@@ -144,3 +153,16 @@ class fourCS:
 			logger.info(f"Creating {self.path}.")
 			os.chdir(self.path)
 			logger.info(f"Changed Working directory to {self.path} \n")
+
+	def find_empty_threads(self):
+		""" Helper function to avoid empty Directories, and just to visit the threads that has what we really want """
+		logger.info(f'Looking for Empty Threads!')
+		for thread in (self.fetch_threads()):
+			for content in (self.fetch_specific_thread(thread['no'])):
+				print (content)
+				self._valid_data.append(content)
+
+			if not self._valid_data: # if list is empty
+				self._empty_threads.append(thread['no'])
+			del self._valid_data[::]
+		return (self._empty_threads)

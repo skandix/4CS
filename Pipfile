@@ -8,6 +8,7 @@ verify_ssl = true
 [packages]
 requests = "*"
 fake-useragent = "*"
+loguru = "*"
 
 [requires]
 python_version = "3.8"
