@@ -8,10 +8,9 @@ import os
 if __name__ == '__main__':
 	# TODO: make shit faster with threading, each thread get its own processing thread :) 
 	# so 60 4chan threads get 60 processing threads.
-	api = fourCS('gif', '', 'links', '', 'github')
+	api = fourCS('g', '', 'links', '', 'github')
 
 	# TODO: Implement Threading here to make this go a bit faster :) 
-
 	logger.info(f"Found {len(api.find_empty_threads())} Empty Threads")
 
 	for thread in (api.fetch_threads()):
