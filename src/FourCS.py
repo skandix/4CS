@@ -91,15 +91,16 @@ class fourCS:
     def sanitize_text(self, loot: str):
         """ sanitize text if strange unicode happens """
         unicode_code = [
-            ('&gt;', ''),
-            ('&lt;', ''),
-            ('[)(,\']+',''),
+            ("&gt;", ""),
+            ("&lt;", ""),
+            ("[)(,']+", ""),
             ("&amp;", "&"),
-            ('&quot;', ''),
+            ("&quot;", ""),
             ("&#039;", "'"),
             ("<wbr>", ""),
             ("<br>\w+", "\n"),
-            ("<.*?>", " "),
+            ("<.*?>", ""),
+            ("\d{8}", ""),
         ]
 
         for old, new in unicode_code:
@@ -138,11 +139,11 @@ class fourCS:
                 file.write(str(content))
                 file.write(str("\n"))
 
-    def is_it_unique(self, text:str):
+    def is_it_unique(self, text: str):
         unique = []
         if text not in unique:
             unique.append(text)
-        return ("\n".join(unique))
+        return "\n".join(unique)
 
     def times_stomper():
         from datetime import datetime
