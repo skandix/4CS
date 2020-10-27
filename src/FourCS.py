@@ -1,5 +1,6 @@
 import requests
 import shutil
+import asyncio
 import json
 import re
 import os
@@ -8,14 +9,16 @@ from fake_useragent import UserAgent
 from datetime import datetime
 from loguru import logger  # best fucking log lib
 
-logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
-logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
+logger.add("../logs/4CS_Error.log", rotation="1 Week",
+           compression="zip", level="ERROR")
+logger.add("../logs/4CS.log", rotation="1 Week",
+           compression="zip", level="INFO")
 
 
 class fourCS:
     def __init__(self, board, path, search_type, extension, search):
         self.board = board
-        self.path = path
+        self.path = ""
         self.search_type = search_type
         self.extension = extension
         self.search = search
@@ -24,8 +27,10 @@ class fourCS:
         self._valid_data = []
         self._empty_threads = []
 
-        if self.path == "":
-            self.path = "../dl/"
+        if self.path is not "":
+            self.path = path
+        elif self.path:
+            self.path = "../dl"
 
         if self.search_type not in self._valid_search_type:
             logger.error(
@@ -70,9 +75,9 @@ class fourCS:
 
                 elif self.search_type == "text":
                     try:
-                        clean_text = self.sanitize_text(thread_page["com"])
-                        even_cleaner = self.remove_urls(clean_text)
-                        yield even_cleaner
+                        sanitized_text = self.sanitize_text(thread_page["com"])
+                        no_url_text = self.remove_urls(sanitized_text)
+                        yield no_url_text
                     except KeyError as Error:
                         ...
 
@@ -85,7 +90,8 @@ class fourCS:
                             yield links
                     except KeyError as Error:
                         ...
-        except json.decoder.JSONDecodeError as e:  # this is usually due to that the thread is not existsing.
+        # this is usually due to that the thread is not existsing.
+        except json.decoder.JSONDecodeError as e:
             ...
 
     def sanitize_text(self, loot: str):
@@ -118,6 +124,7 @@ class fourCS:
         if match:
             return match.group(0)
 
+    @logger.catch
     def download(self, content):
         if self.search_type == "img":
             filename = content.split("/")[-1]
@@ -158,6 +165,7 @@ class fourCS:
         """
         foldername = str(foldername)  # type casting in python, is straange
 
+        # TODO: cleanup this spaghetti code... yikes
         if os.path.isdir(f"{self.path}"):
             logger.info(f"{self.path} Is existsing.")
             os.chdir(self.path)

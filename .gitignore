@@ -1,6 +1,8 @@
 # custom shit
 dl/*
 logs/*
+.vscode
+Links.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
