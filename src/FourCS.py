@@ -24,10 +24,11 @@ class fourCS:
         self.search = search
 
         self._valid_search_type = ["img", "text", "links"]
-        self._valid_data = []
+        self._valid_threads = []
         self._empty_threads = []
+        self.replies_threshold = 5  # amount of replies a thread need to be NOT EMPTY
 
-        if self.path is not "":
+        if self.path != "":
             self.path = path
         elif self.path:
             self.path = "../dl"
@@ -44,8 +45,13 @@ class fourCS:
         self.session.headers.update({"User-Agent": self.user_agent.random})
 
     @logger.catch
-    def fetch_threads(self):
-        """ Fetch all threads from a specific board on 4chan """
+    def fetch_threads(self) -> dict:
+        """
+        fetch_threads fetch all threads from a specific board on 4chan
+
+        Yields:
+            [generator object]: [returns generator object with thread id, last_modified, and amount of replies]
+        """
         threads = f"https://a.4cdn.org/{self.board}/threads.json"
 
         for thread_collection in self.session.get(threads).json():
@@ -54,12 +60,21 @@ class fourCS:
 
     @logger.catch
     def fetch_specific_thread(self, thread_id: int):
-        """ Fetch all data from a specific thread """
+        """
+        fetch_specific_thread
+
+        Fetch all data from a specific thread
+        And of a certain type that's specified in
+
+        Yields:
+            [generator object]: []
+        """
         thread = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
 
         try:
             for thread_page in self.session.get(thread).json()["posts"]:
                 if self.search_type == "img":
+
                     # TODO: implement searching the threads for specific keywords..
                     try:
                         if self.extension == thread_page["ext"]:
@@ -71,7 +86,8 @@ class fourCS:
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
                     except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
-                        ...
+                        logger.info(
+                            'Can\'t Find the image in  {thread_id} on /{self.board}/')
 
                 elif self.search_type == "text":
                     try:
@@ -135,7 +151,7 @@ class fourCS:
         elif self.search_type == "links":
             """ Write each link to the thread """
             filename = "Links.txt"
-            with open(filename, "w+") as file:
+            with open(filename, "a") as file:
                 file.write(str(content))
                 # shutil.copyfileobj(stream.raw, file)
 
@@ -143,8 +159,7 @@ class fourCS:
             """ Write each text to the thread """
             filename = "Text.txt"
             with open(filename, "w+") as file:
-                file.write(str(content))
-                file.write(str("\n"))
+                file.write(f"{content}\n")
 
     def is_it_unique(self, text: str):
         unique = []
@@ -185,14 +200,20 @@ class fourCS:
             logger.info(f"Changed Working directory to {self.path} \n")
 
     def find_empty_threads(self):
-        """ Helper function to avoid empty Directories, and just to visit the threads that has what we really want """
+        """
+        find_empty_threads [summary]
+
+        Helper function to avoid empty Directories, and just to visit the threads that has what we really want
+
+        Returns:
+            [list]: [list containing valid and non-empty threads]
+        """
         logger.info(f"Looking for Empty Threads!")
         for thread in self.fetch_threads():
-            for content in self.fetch_specific_thread(thread["no"]):
-                print(content)
-                self._valid_data.append(content)
-
-            if not self._valid_data:  # if list is empty
+            if thread['replies'] >= self.replies_threshold:
+                #logger.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
+                self._valid_threads.append(thread['no'])
+            else:
                 self._empty_threads.append(thread["no"])
-            del self._valid_data[::]
-        return self._empty_threads
+            # del self._valid_data[::]
+        return self._valid_threads
