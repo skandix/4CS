@@ -1,6 +1,7 @@
 import requests
 import shutil
 import asyncio
+import html
 import json
 import re
 import os
@@ -15,6 +16,7 @@ logger.add("../logs/4CS.log", rotation="1 Week",
            compression="zip", level="INFO")
 
 
+# TODO: what was the thing with *args and **kwargs. How the fuck did i use that shit again ? 
 class fourCS:
     def __init__(self, board, path, search_type, extension, search):
         self.board = board
@@ -100,7 +102,6 @@ class fourCS:
                 elif self.search_type == "links":
                     try:
                         clean_text = self.sanitize_text(thread_page["com"])
-                        # links = clean_text
                         links = self.find_urls(clean_text)
                         if type(links) == str:
                             yield links
@@ -111,17 +112,24 @@ class fourCS:
             ...
 
     def sanitize_text(self, loot: str):
-        """ sanitize text if strange unicode happens """
+        """
+        sanitize_text
+
+        Sanitize the text from html tags, and unwanted unicode
+
+        Args:
+            loot (str): [text]
+
+        Returns:
+            [str]: [sanitized string]
+        """
+        #sanitize text if strange unicode happens
+
+        loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
-            ("&gt;", ""),
-            ("&lt;", ""),
-            ("[)(,']+", ""),
-            ("&amp;", "&"),
-            ("&quot;", ""),
-            ("&#039;", "'"),
-            ("<wbr>", ""),
-            ("<br>\w+", "\n"),
-            ("<.*?>", ""),
+            #("<.*?>\w+", ""),
+            #("<.*?>", ""),
+            (u"class=\"quotelink\"\S+<br>([\w ?:(<br>|&#;)/.,]+)</blockquote>", "")
             ("\d{8}", ""),
         ]
 
@@ -134,13 +142,18 @@ class fourCS:
         return re.sub(pattern, "", loot)
 
     def find_urls(self, loot):
-        pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
+        #pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
+        """
+        pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#][\. ]+[^\s]*)')
         match = re.search(pattern, loot)
 
         if match:
             return match.group(0)
+        """
+        return loot
 
     @logger.catch
+    # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
     def download(self, content):
         if self.search_type == "img":
             filename = content.split("/")[-1]
@@ -149,18 +162,17 @@ class fourCS:
                 shutil.copyfileobj(stream.raw, file)
 
         elif self.search_type == "links":
-            """ Write each link to the thread """
             filename = "Links.txt"
             with open(filename, "a") as file:
                 file.write(str(content))
                 # shutil.copyfileobj(stream.raw, file)
 
         elif self.search_type == "text":
-            """ Write each text to the thread """
             filename = "Text.txt"
             with open(filename, "w+") as file:
                 file.write(f"{content}\n")
 
+    # Have i actually used this before ?
     def is_it_unique(self, text: str):
         unique = []
         if text not in unique:
@@ -168,17 +180,25 @@ class fourCS:
         return "\n".join(unique)
 
     def times_stomper():
-        from datetime import datetime
+        """
+        times_stomper
 
-        """ timestamp the files that contains fuck loads of urls or text from 4chan """
+        Timestamp files and/or folders when scraping a board, migth be an idea to create a "state" file instead
+        """
+        from datetime import datetime
         ...
 
     @logger.catch
     def generate_directories(self, foldername: str):
         """
-        generate folder for threads and board, to put the files in..
+        generate_directories
+
+        Generate folders for threads and boards, for storing files.
+
+        Args:
+            foldername (str): [name of the folder]
         """
-        foldername = str(foldername)  # type casting in python, is straange
+        #generate folder for threads and board, to put the files in..
 
         # TODO: cleanup this spaghetti code... yikes
         if os.path.isdir(f"{self.path}"):

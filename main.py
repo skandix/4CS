@@ -28,10 +28,10 @@ if __name__ == "__main__":
     """
 
     #api = fourCS(args.board, args.path, args.type, args.extension, args.search)
-    api = fourCS("g", "", "links", "", "github")
+    api = fourCS("g", "", "links", "", "")
     api.find_empty_threads()
     for thread_id in api._valid_threads:
-        logger.info(f"Working on Thread: {thread_id} ")
+        #logger.info(f"Working on Thread: {thread_id} ")
         for content in api.fetch_specific_thread(thread_id):
             print(content)
     #print(thread['no'] != api._empty_threads)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         elif thread["no"] not in api._empty_threads:
             api.generate_directories(f"{thread['no']}")
 
-        
+
         for content in api.fetch_specific_thread(thread["no"]):
             api.download(content)
         logger.info(f"Leaving directory {thread['no']}")
