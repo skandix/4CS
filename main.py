@@ -34,7 +34,7 @@ if __name__ == "__main__":
         #logger.info(f"Working on Thread: {thread_id} ")
         for content in api.fetch_specific_thread(thread_id):
             print(content)
-    #print(thread['no'] != api._empty_threads)
+    #print(thread['no'] != api._empty_threads)P
     """
     logger.info(f"Found {len(api.find_empty_threads())} Empty Threads")
     for thread in api.fetch_threads():

@@ -127,10 +127,9 @@ class fourCS:
 
         loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
-            #("<.*?>\w+", ""),
-            #("<.*?>", ""),
-            (u"class=\"quotelink\"\S+<br>([\w ?:(<br>|&#;)/.,]+)</blockquote>", "")
-            ("\d{8}", ""),
+            ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
+            ("<.*?>", ""),
+            ("(>>\d{8}|>)", ""),
         ]
 
         for old, new in unicode_code:
@@ -142,15 +141,15 @@ class fourCS:
         return re.sub(pattern, "", loot)
 
     def find_urls(self, loot):
-        #pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
-        """
-        pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#][\. ]+[^\s]*)')
+        pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
+        #pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#][\. ]+[^\s]*)')
         match = re.search(pattern, loot)
+        return match
 
-        if match:
-            return match.group(0)
-        """
-        return loot
+        #if match:
+        #    return match.group(0)
+
+        #return loot
 
     @logger.catch
     # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
