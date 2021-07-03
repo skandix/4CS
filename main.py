@@ -28,13 +28,13 @@ if __name__ == "__main__":
     """
 
     #api = fourCS(args.board, args.path, args.type, args.extension, args.search)
-    api = fourCS("g", "", "links", "", "")
+    api = fourCS("lgbt", "", "text", "", "")
     api.find_empty_threads()
     for thread_id in api._valid_threads:
-        #logger.info(f"Working on Thread: {thread_id} ")
+        logger.info(f"Working on Thread: {thread_id} ")
         for content in api.fetch_specific_thread(thread_id):
             print(content)
-    #print(thread['no'] != api._empty_threads)P
+    #print(thread['no'] != api._empty_threads)
     """
     logger.info(f"Found {len(api.find_empty_threads())} Empty Threads")
     for thread in api.fetch_threads():

@@ -16,7 +16,7 @@ logger.add("../logs/4CS.log", rotation="1 Week",
            compression="zip", level="INFO")
 
 
-# TODO: what was the thing with *args and **kwargs. How the fuck did i use that shit again ? 
+# TODO: what was the thing with *args and **kwargs. How the fuck did i use that shit again ?
 class fourCS:
     def __init__(self, board, path, search_type, extension, search):
         self.board = board
@@ -93,15 +93,16 @@ class fourCS:
 
                 elif self.search_type == "text":
                     try:
+                        dirty_text = thread_page["com"]
+                        no_url_text = self.remove_urls(dirty_text)
                         sanitized_text = self.sanitize_text(thread_page["com"])
-                        no_url_text = self.remove_urls(sanitized_text)
                         yield no_url_text
                     except KeyError as Error:
                         ...
 
                 elif self.search_type == "links":
                     try:
-                        clean_text = self.sanitize_text(thread_page["com"])
+                        clean_text = thread_page["com"]
                         links = self.find_urls(clean_text)
                         if type(links) == str:
                             yield links
@@ -125,7 +126,7 @@ class fourCS:
         """
         #sanitize text if strange unicode happens
 
-        loot = html.unescape(loot) # render "unicode" such as gt and amp signs
+        #loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
             ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
             ("<.*?>", ""),
@@ -136,20 +137,21 @@ class fourCS:
             loot = re.sub(old, new, loot)
         return loot
 
+    # can convert remove and find urls to a higher order function, to avoid repeating code.
     def remove_urls(self, loot):
-        pattern = re.compile("(https?|ftp|http)://[^\s/$.?#].[^\s]*")
+        loot = html.unescape(loot)
+        loot = re.sub("<wbr>", "", loot)
+        pattern = re.compile("(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+")
         return re.sub(pattern, "", loot)
 
     def find_urls(self, loot):
-        pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
-        #pattern = re.compile(u'((https?|http?|ftp)://[^\s/$.?#][\. ]+[^\s]*)')
+        loot = html.unescape(loot)
+        loot = re.sub("<wbr>", "", loot)
+        pattern = re.compile("(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+")
         match = re.search(pattern, loot)
-        return match
 
-        #if match:
-        #    return match.group(0)
-
-        #return loot
+        if match:
+            return match.group()
 
     @logger.catch
     # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
@@ -234,5 +236,4 @@ class fourCS:
                 self._valid_threads.append(thread['no'])
             else:
                 self._empty_threads.append(thread["no"])
-            # del self._valid_data[::]
         return self._valid_threads
