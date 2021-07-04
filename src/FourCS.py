@@ -10,10 +10,8 @@ from fake_useragent import UserAgent
 from datetime import datetime
 from loguru import logger  # best fucking log lib
 
-logger.add("../logs/4CS_Error.log", rotation="1 Week",
-           compression="zip", level="ERROR")
-logger.add("../logs/4CS.log", rotation="1 Week",
-           compression="zip", level="INFO")
+logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
+logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
 
 
 # TODO: what was the thing with *args and **kwargs. How the fuck did i use that shit again ?
@@ -61,6 +59,14 @@ class fourCS:
                 yield thread
 
     @logger.catch
+    def fetch_thread_subject(self, thread_id:str) -> str:
+        subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
+        try:
+            return html.unescape(self.session.get(subject).json()['posts'][0]['sub'])
+        except KeyError:
+            return html.unescape(self.session.get(subject).json()['posts'][0]['com'])
+
+    @logger.catch
     def fetch_specific_thread(self, thread_id: int):
         """
         fetch_specific_thread
@@ -88,15 +94,16 @@ class fourCS:
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
                     except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
-                        logger.info(
-                            'Can\'t Find the image in  {thread_id} on /{self.board}/')
+                        #logger.info(
+                        #    f'Can\'t Find the image in  {thread_id} on /{self.board}/')
+                        ...
 
                 elif self.search_type == "text":
                     try:
                         dirty_text = thread_page["com"]
                         no_url_text = self.remove_urls(dirty_text)
-                        sanitized_text = self.sanitize_text(thread_page["com"])
-                        yield no_url_text
+                        sanitized_text = self.sanitize_text(no_url_text)
+                        yield sanitized_text.lstrip()
                     except KeyError as Error:
                         ...
 
@@ -111,6 +118,17 @@ class fourCS:
         # this is usually due to that the thread is not existsing.
         except json.decoder.JSONDecodeError as e:
             ...
+
+    def rm_html_tags(self, text):
+        unicode_code = [
+            ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
+            ("<.*?>", " "),
+            ("(>>\d{8}|>)", ""),
+        ]
+
+        for old, new in unicode_code:
+            loot = re.sub(old, new, loot)
+        return loot
 
     def sanitize_text(self, loot: str):
         """
@@ -129,7 +147,7 @@ class fourCS:
         #loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
             ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
-            ("<.*?>", ""),
+            ("<.*?>", " "),
             ("(>>\d{8}|>)", ""),
         ]
 
