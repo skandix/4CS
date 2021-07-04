@@ -1,6 +1,5 @@
 import requests
 import shutil
-import asyncio
 import html
 import json
 import re
@@ -13,14 +12,15 @@ from loguru import logger  # best fucking log lib
 logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
 logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
 
+
 class fourCS:
-    def __init__(self, board, path, search_type, extension, search):
+    def __init__(self, board, path, search_type, extension, search_term):
         self.board = board
         self.path = ""
         self.search_type = search_type
         self.extension = extension
-        self.search = search
-        
+        self.search_term = search_term
+
         self._boards_url = "https://a.4cdn.org/boards.json"
         self._valid_boards = []
 
@@ -60,20 +60,22 @@ class fourCS:
             for thread in thread_collection["threads"]:
                 yield thread
 
-    @logger.catch
-    def fetch_thread_subject(self, thread_id:str) -> str:
+    # @logger.catch
+    def fetch_thread_subject(self, thread_id: str) -> str:
         subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
         try:
-            return html.unescape(self.session.get(subject).json()['posts'][0]['sub'])
+            return html.unescape(self.session.get(subject).json()["posts"][0]["sub"])
         except KeyError:
-            comment = self.session.get(subject).json()['posts'][0]['com']
+            comment = self.session.get(subject).json()["posts"][0]["com"]
             return html.unescape(self.rm_html_tags(comment)[:64])
+        except Exception:  # this means thread is dead (it returns json decode error)
+            return thread_id
 
     @logger.catch
     def list_valid_boards(self):
-        boards = self.session.get(self._boards_url).json()['boards']
+        boards = self.session.get(self._boards_url).json()["boards"]
         for board in boards:
-            self._valid_boards.append(board['board'])
+            self._valid_boards.append(board["board"])
         return self._valid_boards
 
     @logger.catch
@@ -104,8 +106,9 @@ class fourCS:
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
                     except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
-                        #logger.info(
-                        #    f'Can\'t Find the image in  {thread_id} on /{self.board}/')
+                        logger.error(
+                            f"Can't Find the image in  {thread_id} on /{self.board}/"
+                        )
                         ...
 
                 elif self.search_type == "text":
@@ -122,7 +125,14 @@ class fourCS:
                         clean_text = thread_page["com"]
                         links = self.find_urls(clean_text)
                         if type(links) == str:
-                            yield links
+                            if self.search_term != "":  # ghetto as search
+                                # TODO: Implement search with re.search and probably seperate that code in to its own function.
+                                # i want to be able to trigger board title and/or posts inside board,
+                                # https://github.com/skandix/4chan_AI_chatbot/blob/master/scrapers/Scraper.py#L121
+                                if self.search_term in links:
+                                    yield links
+                            else:
+                                yield links
                     except KeyError as Error:
                         ...
         # this is usually due to that the thread is not existsing.
@@ -156,11 +166,11 @@ class fourCS:
         Returns:
             [str]: [sanitized string]
         """
-        #sanitize text if strange unicode happens
+        # sanitize text if strange unicode happens
 
-        #loot = html.unescape(loot) # render "unicode" such as gt and amp signs
+        # loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
-            ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
+            ('<a href="\#\w+" class="quotelink">>>\d+', ""),
             ("<.*?>", " "),
             ("(>>\d{8}|>)", ""),
         ]
@@ -219,6 +229,7 @@ class fourCS:
         Timestamp files and/or folders when scraping a board, migth be an idea to create a "state" file instead
         """
         from datetime import datetime
+
         ...
 
     @logger.catch
@@ -231,7 +242,7 @@ class fourCS:
         Args:
             foldername (str): [name of the folder]
         """
-        #generate folder for threads and board, to put the files in..
+        # generate folder for threads and board, to put the files in..
 
         # TODO: cleanup this spaghetti code... yikes
         if os.path.isdir(f"{self.path}"):
@@ -263,9 +274,9 @@ class fourCS:
         """
         logger.info(f"Looking for Empty Threads!")
         for thread in self.fetch_threads():
-            if thread['replies'] >= self.replies_threshold:
-                #logger.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
-                self._valid_threads.append(thread['no'])
+            if thread["replies"] >= self.replies_threshold:
+                # logger.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
+                self._valid_threads.append(thread["no"])
             else:
                 self._empty_threads.append(thread["no"])
         return self._valid_threads
