@@ -13,8 +13,6 @@ from loguru import logger  # best fucking log lib
 logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
 logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
 
-
-# TODO: what was the thing with *args and **kwargs. How the fuck did i use that shit again ?
 class fourCS:
     def __init__(self, board, path, search_type, extension, search):
         self.board = board
@@ -22,10 +20,14 @@ class fourCS:
         self.search_type = search_type
         self.extension = extension
         self.search = search
+        
+        self._boards_url = "https://a.4cdn.org/boards.json"
+        self._valid_boards = []
 
         self._valid_search_type = ["img", "text", "links"]
         self._valid_threads = []
         self._empty_threads = []
+        self._unique = []
         self.replies_threshold = 5  # amount of replies a thread need to be NOT EMPTY
 
         if self.path != "":
@@ -64,7 +66,15 @@ class fourCS:
         try:
             return html.unescape(self.session.get(subject).json()['posts'][0]['sub'])
         except KeyError:
-            return html.unescape(self.session.get(subject).json()['posts'][0]['com'])
+            comment = self.session.get(subject).json()['posts'][0]['com']
+            return html.unescape(self.rm_html_tags(comment)[:64])
+
+    @logger.catch
+    def list_valid_boards(self):
+        boards = self.session.get(self._boards_url).json()['boards']
+        for board in boards:
+            self._valid_boards.append(board['board'])
+        return self._valid_boards
 
     @logger.catch
     def fetch_specific_thread(self, thread_id: int):
@@ -120,14 +130,18 @@ class fourCS:
             ...
 
     def rm_html_tags(self, text):
-        unicode_code = [
-            ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
-            ("<.*?>", " "),
-            ("(>>\d{8}|>)", ""),
-        ]
+        """
+        rm_html_tags
 
-        for old, new in unicode_code:
-            loot = re.sub(old, new, loot)
+        [extended_summary]
+
+        Args:
+            text ([str]): [takes in html infested text]
+
+        Returns:
+            [str]: [return clean text, without html]
+        """
+        loot = re.sub("<.*?>", "", text).replace(">", "")
         return loot
 
     def sanitize_text(self, loot: str):
@@ -191,12 +205,12 @@ class fourCS:
             with open(filename, "w+") as file:
                 file.write(f"{content}\n")
 
-    # Have i actually used this before ?
     def is_it_unique(self, text: str):
-        unique = []
-        if text not in unique:
-            unique.append(text)
-        return "\n".join(unique)
+        if text not in self._unique:
+            self._unique.append(text)
+            return True
+        else:
+            return False
 
     def times_stomper():
         """
