@@ -1,6 +1,7 @@
 import requests
 import shutil
 import asyncio
+import html
 import json
 import re
 import os
@@ -9,11 +10,8 @@ from fake_useragent import UserAgent
 from datetime import datetime
 from loguru import logger  # best fucking log lib
 
-logger.add("../logs/4CS_Error.log", rotation="1 Week",
-           compression="zip", level="ERROR")
-logger.add("../logs/4CS.log", rotation="1 Week",
-           compression="zip", level="INFO")
-
+logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
+logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
 
 class fourCS:
     def __init__(self, board, path, search_type, extension, search):
@@ -22,10 +20,14 @@ class fourCS:
         self.search_type = search_type
         self.extension = extension
         self.search = search
+        
+        self._boards_url = "https://a.4cdn.org/boards.json"
+        self._valid_boards = []
 
         self._valid_search_type = ["img", "text", "links"]
         self._valid_threads = []
         self._empty_threads = []
+        self._unique = []
         self.replies_threshold = 5  # amount of replies a thread need to be NOT EMPTY
 
         if self.path != "":
@@ -59,6 +61,22 @@ class fourCS:
                 yield thread
 
     @logger.catch
+    def fetch_thread_subject(self, thread_id:str) -> str:
+        subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
+        try:
+            return html.unescape(self.session.get(subject).json()['posts'][0]['sub'])
+        except KeyError:
+            comment = self.session.get(subject).json()['posts'][0]['com']
+            return html.unescape(self.rm_html_tags(comment)[:64])
+
+    @logger.catch
+    def list_valid_boards(self):
+        boards = self.session.get(self._boards_url).json()['boards']
+        for board in boards:
+            self._valid_boards.append(board['board'])
+        return self._valid_boards
+
+    @logger.catch
     def fetch_specific_thread(self, thread_id: int):
         """
         fetch_specific_thread
@@ -86,21 +104,22 @@ class fourCS:
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
                     except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
-                        logger.info(
-                            'Can\'t Find the image in  {thread_id} on /{self.board}/')
+                        #logger.info(
+                        #    f'Can\'t Find the image in  {thread_id} on /{self.board}/')
+                        ...
 
                 elif self.search_type == "text":
                     try:
-                        sanitized_text = self.sanitize_text(thread_page["com"])
-                        no_url_text = self.remove_urls(sanitized_text)
-                        yield no_url_text
+                        dirty_text = thread_page["com"]
+                        no_url_text = self.remove_urls(dirty_text)
+                        sanitized_text = self.sanitize_text(no_url_text)
+                        yield sanitized_text.lstrip()
                     except KeyError as Error:
                         ...
 
                 elif self.search_type == "links":
                     try:
-                        clean_text = self.sanitize_text(thread_page["com"])
-                        # links = clean_text
+                        clean_text = thread_page["com"]
                         links = self.find_urls(clean_text)
                         if type(links) == str:
                             yield links
@@ -110,37 +129,64 @@ class fourCS:
         except json.decoder.JSONDecodeError as e:
             ...
 
+    def rm_html_tags(self, text):
+        """
+        rm_html_tags
+
+        [extended_summary]
+
+        Args:
+            text ([str]): [takes in html infested text]
+
+        Returns:
+            [str]: [return clean text, without html]
+        """
+        loot = re.sub("<.*?>", "", text).replace(">", "")
+        return loot
+
     def sanitize_text(self, loot: str):
-        """ sanitize text if strange unicode happens """
+        """
+        sanitize_text
+
+        Sanitize the text from html tags, and unwanted unicode
+
+        Args:
+            loot (str): [text]
+
+        Returns:
+            [str]: [sanitized string]
+        """
+        #sanitize text if strange unicode happens
+
+        #loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
-            ("&gt;", ""),
-            ("&lt;", ""),
-            ("[)(,']+", ""),
-            ("&amp;", "&"),
-            ("&quot;", ""),
-            ("&#039;", "'"),
-            ("<wbr>", ""),
-            ("<br>\w+", "\n"),
-            ("<.*?>", ""),
-            ("\d{8}", ""),
+            ("<a href=\"\#\w+\" class=\"quotelink\">>>\d+", ""),
+            ("<.*?>", " "),
+            ("(>>\d{8}|>)", ""),
         ]
 
         for old, new in unicode_code:
             loot = re.sub(old, new, loot)
         return loot
 
+    # can convert remove and find urls to a higher order function, to avoid repeating code.
     def remove_urls(self, loot):
-        pattern = re.compile("(https?|ftp|http)://[^\s/$.?#].[^\s]*")
+        loot = html.unescape(loot)
+        loot = re.sub("<wbr>", "", loot)
+        pattern = re.compile("(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+")
         return re.sub(pattern, "", loot)
 
     def find_urls(self, loot):
-        pattern = re.compile("((https?|http?|ftp)://[^\s/$.?#].[^\s]*)")
+        loot = html.unescape(loot)
+        loot = re.sub("<wbr>", "", loot)
+        pattern = re.compile("(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+")
         match = re.search(pattern, loot)
 
         if match:
-            return match.group(0)
+            return match.group()
 
     @logger.catch
+    # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
     def download(self, content):
         if self.search_type == "img":
             filename = content.split("/")[-1]
@@ -149,36 +195,43 @@ class fourCS:
                 shutil.copyfileobj(stream.raw, file)
 
         elif self.search_type == "links":
-            """ Write each link to the thread """
             filename = "Links.txt"
             with open(filename, "a") as file:
                 file.write(str(content))
                 # shutil.copyfileobj(stream.raw, file)
 
         elif self.search_type == "text":
-            """ Write each text to the thread """
             filename = "Text.txt"
             with open(filename, "w+") as file:
                 file.write(f"{content}\n")
 
     def is_it_unique(self, text: str):
-        unique = []
-        if text not in unique:
-            unique.append(text)
-        return "\n".join(unique)
+        if text not in self._unique:
+            self._unique.append(text)
+            return True
+        else:
+            return False
 
     def times_stomper():
-        from datetime import datetime
+        """
+        times_stomper
 
-        """ timestamp the files that contains fuck loads of urls or text from 4chan """
+        Timestamp files and/or folders when scraping a board, migth be an idea to create a "state" file instead
+        """
+        from datetime import datetime
         ...
 
     @logger.catch
     def generate_directories(self, foldername: str):
         """
-        generate folder for threads and board, to put the files in..
+        generate_directories
+
+        Generate folders for threads and boards, for storing files.
+
+        Args:
+            foldername (str): [name of the folder]
         """
-        foldername = str(foldername)  # type casting in python, is straange
+        #generate folder for threads and board, to put the files in..
 
         # TODO: cleanup this spaghetti code... yikes
         if os.path.isdir(f"{self.path}"):
@@ -215,5 +268,4 @@ class fourCS:
                 self._valid_threads.append(thread['no'])
             else:
                 self._empty_threads.append(thread["no"])
-            # del self._valid_data[::]
         return self._valid_threads
