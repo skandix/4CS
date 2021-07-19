@@ -60,8 +60,8 @@ class fourCS:
             for thread in thread_collection["threads"]:
                 yield thread
 
-    # @logger.catch
-    def fetch_thread_subject(self, thread_id: str) -> str:
+    @logger.catch
+    def fetch_thread_subject(self, thread_id: str):
         subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
         try:
             return html.unescape(self.session.get(subject).json()["posts"][0]["sub"])
@@ -106,9 +106,6 @@ class fourCS:
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
                     except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
-                        logger.error(
-                            f"Can't Find the image in  {thread_id} on /{self.board}/"
-                        )
                         ...
 
                 elif self.search_type == "text":
@@ -125,14 +122,7 @@ class fourCS:
                         clean_text = thread_page["com"]
                         links = self.find_urls(clean_text)
                         if type(links) == str:
-                            if self.search_term != "":  # ghetto as search
-                                # TODO: Implement search with re.search and probably seperate that code in to its own function.
-                                # i want to be able to trigger board title and/or posts inside board,
-                                # https://github.com/skandix/4chan_AI_chatbot/blob/master/scrapers/Scraper.py#L121
-                                if self.search_term in links:
-                                    yield links
-                            else:
-                                yield links
+                            yield links
                     except KeyError as Error:
                         ...
         # this is usually due to that the thread is not existsing.
