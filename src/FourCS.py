@@ -1,53 +1,35 @@
 import requests
-import shutil
 import html
 import json
 import re
-import os
 
-from fake_useragent import UserAgent
-from datetime import datetime
-from loguru import logger  # best fucking log lib
+from loguru import logger as log
 
-logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
-logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
+log.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
+log.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
 
 
 class fourCS:
-    def __init__(self, board, path, search_type, extension, search_term):
-        self.board = board
-        self.path = ""
-        self.search_type = search_type
-        self.extension = extension
-        self.search_term = search_term
+    def __init__(self):
+        self.board = "g"
+        self.search_type = "links"
+        self.extension = ""
+        self._EMPTY_THREADS = list()
 
-        self._boards_url = "https://a.4cdn.org/boards.json"
-        self._valid_boards = []
-
-        self._valid_search_type = ["img", "text", "links"]
-        self._valid_threads = []
-        self._empty_threads = []
-        self._unique = []
         self.replies_threshold = 5  # amount of replies a thread need to be NOT EMPTY
-
-        if self.path != "":
-            self.path = path
-        elif self.path:
-            self.path = "../dl"
-
-        if self.search_type not in self._valid_search_type:
-            logger.error(
-                f"Please Supply a Valid Search Type.\nAvaliable Search Types \
-                {self._valid_search_type}"
-            )
-            quit()
-
+        self._boards_url = "https://a.4cdn.org/boards.json"
         self.session = requests.Session()
-        # self.user_agent = UserAgent(cache=False)
+
         self.user_agent = "Mozilla/5.0 (Windows NT 6.2; Win64; x64; rv:16.0.1) Gecko/20121011 Firefox/16.0.1"
         self.session.headers.update({"User-Agent": self.user_agent})
 
-    @logger.catch
+    def _process_boards(self, boards):
+        if isinstance(boards, str):
+            ...
+        elif isinstance(boars, list):
+            ...
+
+    @log.catch
     def fetch_threads(self) -> dict:
         """
         fetch_threads fetch all threads from a specific board on 4chan
@@ -55,31 +37,32 @@ class fourCS:
         Yields:
             [generator object]: [returns generator object with thread id, last_modified, and amount of replies]
         """
-        threads = f"https://a.4cdn.org/{self.board}/threads.json"
+        THREADS = f"https://a.4cdn.org/{self.board}/threads.json"
 
-        for thread_collection in self.session.get(threads).json():
-            for thread in thread_collection["threads"]:
-                yield thread
+        for THREAD_COLLECTION in self.session.get(THREADS).json():
+            for THREAD in THREAD_COLLECTION["threads"]:
+                yield THREAD
 
-    @logger.catch
+    @log.catch
     def fetch_thread_subject(self, thread_id: str):
-        subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
+        SUBJECT = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
         try:
-            return html.unescape(self.session.get(subject).json()["posts"][0]["sub"])
+            return html.unescape(self.session.get(SUBJECT).json()["posts"][0]["sub"])
         except KeyError:
-            comment = self.session.get(subject).json()["posts"][0]["com"]
-            return html.unescape(self.rm_html_tags(comment)[:64])
+            COMMENT = self.session.get(SUBJECT).json()["posts"][0]["com"]
+            return html.unescape(self.rm_html_tags(COMMENT)[:64])
         except Exception:  # this means thread is dead (it returns json decode error)
             return thread_id
 
-    @logger.catch
+    @log.catch
     def list_valid_boards(self):
+        _VALID_BOARDS = list()
         boards = self.session.get(self._boards_url).json()["boards"]
         for board in boards:
-            self._valid_boards.append(board["board"])
-        return self._valid_boards
+            _VALID_BOARDS.append(board["board"])
+        return _VALID_BOARDS
 
-    @logger.catch
+    @log.catch
     def fetch_specific_thread(self, thread_id: int):
         """
         fetch_specific_thread
@@ -95,8 +78,6 @@ class fourCS:
         try:
             for thread_page in self.session.get(thread).json()["posts"]:
                 if self.search_type == "img":
-
-                    # TODO: implement searching the threads for specific keywords..
                     try:
                         if self.extension == thread_page["ext"]:
                             yield (
@@ -157,8 +138,6 @@ class fourCS:
         Returns:
             [str]: [sanitized string]
         """
-        # sanitize text if strange unicode happens
-
         # loot = html.unescape(loot) # render "unicode" such as gt and amp signs
         unicode_code = [
             ('<a href="\#\w+" class="quotelink">>>\d+', ""),
@@ -186,73 +165,12 @@ class fourCS:
         if match:
             return match.group()
 
-    @logger.catch
-    # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
-    def download(self, content):
-        if self.search_type == "img":
-            filename = content.split("/")[-1]
-            stream = requests.get(content, stream=True)
-            with open(filename, "wb+") as file:
-                shutil.copyfileobj(stream.raw, file)
-
-        elif self.search_type == "links":
-            filename = "Links.txt"
-            with open(filename, "a") as file:
-                file.write(str(content))
-                # shutil.copyfileobj(stream.raw, file)
-
-        elif self.search_type == "text":
-            filename = "Text.txt"
-            with open(filename, "w+") as file:
-                file.write(f"{content}\n")
-
-    def is_it_unique(self, text: str):
-        if text not in self._unique:
-            self._unique.append(text)
+    def is_it_unique(self, text: str, _UNIQUE: list = []):
+        if text not in _UNIQUE:
+            _UNIQUE.append(text)
             return True
         else:
             return False
-
-    def times_stomper():
-        """
-        times_stomper
-
-        Timestamp files and/or folders when scraping a board, migth be an idea to create a "state" file instead
-        """
-        from datetime import datetime
-
-        ...
-
-    @logger.catch
-    def generate_directories(self, foldername: str):
-        """
-        generate_directories
-
-        Generate folders for threads and boards, for storing files.
-
-        Args:
-            foldername (str): [name of the folder]
-        """
-        # generate folder for threads and board, to put the files in..
-
-        # TODO: cleanup this spaghetti code... yikes
-        if os.path.isdir(f"{self.path}"):
-            logger.info(f"{self.path} Is existsing.")
-            os.chdir(self.path)
-            if os.path.isdir(foldername):
-                logger.info(f"Folder '{foldername}' Already Exists.")
-                os.chdir(foldername)
-            else:
-                os.mkdir(foldername)
-                logger.info(f"Created directory {foldername}")
-                os.chdir(foldername)
-                logger.info(f"Changed Working directory to {foldername} \n")
-        elif os.path.isdir(f"{self.path}") == False:
-            logger.info(f"{self.path} Does not exists.")
-            os.mkdir(self.path)
-            logger.info(f"Creating {self.path}.")
-            os.chdir(self.path)
-            logger.info(f"Changed Working directory to {self.path} \n")
 
     def find_empty_threads(self):
         """
@@ -263,11 +181,13 @@ class fourCS:
         Returns:
             [list]: [list containing valid and non-empty threads]
         """
-        logger.info(f"Looking for Empty Threads!")
+        _VALID_THREADS = list()
+
+        log.info(f"Looking for Empty Threads!")
         for thread in self.fetch_threads():
             if thread["replies"] >= self.replies_threshold:
-                # logger.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
-                self._valid_threads.append(thread["no"])
+                log.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
+                _VALID_THREADS.append(thread["no"])
             else:
-                self._empty_threads.append(thread["no"])
-        return self._valid_threads
+                self._EMPTY_THREADS.append(thread["no"])
+        return _VALID_THREADS
