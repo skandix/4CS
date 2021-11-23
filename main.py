@@ -2,14 +2,18 @@
 from src.FourCS import fourCS
 from loguru import logger as log
 
-API = fourCS()
+# board = ["g", "sci", "b"]
+# board = "g"
 
-log.info(f"Found {len(API.find_empty_threads())} Empty Threads")
-for THREAD in API.fetch_threads():
-    THREAD_ID = THREAD["no"]
-    if THREAD_ID not in API._EMPTY_THREADS:
-        log.info(
-            f"Working on Thread: {API.fetch_thread_subject(THREAD_ID) or THREAD_ID}"
-        )
-        for CONTENT in API.fetch_specific_thread(THREAD_ID):
-            print(CONTENT)
+API = fourCS()
+for BOARD in API.list_valid_boards():
+    log.warning(f"=== /{BOARD}/ ===")
+    log.info(f"Found {len(API.find_empty_threads(BOARD))} Empty Threads")
+    for THREAD in API.fetch_threads(BOARD):
+        THREAD_ID = THREAD["no"]
+        if THREAD_ID not in API._EMPTY_THREADS:
+            log.info(
+                f"Working on Thread: {API.fetch_thread_subject(THREAD_ID, BOARD) or THREAD_ID}"
+            )
+            for CONTENT in API.fetch_specific_thread(THREAD_ID, BOARD):
+                print(CONTENT)

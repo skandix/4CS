@@ -8,5 +8,5 @@ shell:
 	pipenv shell
 
 lint:
-	black main.py
-	black src/
+	pipenv run black main.py
+	pipenv run black src/

@@ -7,9 +7,11 @@ verify_ssl = true
 black = "*"
 
 [packages]
-requests = "*"
 loguru = "*"
 black = "*"
+httpx = "*"
+bs4 = "*"
+lxml = "*"
 
 [requires]
 python_version = "3.9"
