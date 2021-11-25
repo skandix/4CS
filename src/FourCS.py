@@ -5,6 +5,8 @@ import re
 from bs4 import BeautifulSoup
 from loguru import logger as log
 
+# from main import THREAD
+
 
 log.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
 log.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
@@ -47,7 +49,7 @@ class fourCS:
             return self.sanitize_text(TITLE)
         except KeyError:
             COMMENT = self.session.get(SUBJECT).json()["posts"][0]["com"]
-            return self.sanitize_text(f"{COMMENT[:64]}...")
+            return self.sanitize_text(f"{COMMENT}")
 
         except Exception:  # this means thread is dead (it returns json decode error)
             return thread_id
@@ -86,11 +88,11 @@ class fourCS:
                     ...
 
         except json.decoder.JSONDecodeError as e:  # this is usually due to that the thread is not existsing.
-            raise ("Thread is gone")
+            ...
 
     def find_urls(self, source):  # TODO: REWORK
         REGEX_PATTERN = re.compile(
-            "(^|)(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+"
+            r"(^|)(https?|ftp|http)://[\w\.\=/\?\-\&\%\(\#\+\\@]+"
         )
         REGEX_MATCH = re.search(REGEX_PATTERN, source)
 
@@ -127,3 +129,23 @@ class fourCS:
             else:
                 self._EMPTY_THREADS.append(THREAD_ID)
         return _VALID_THREADS
+
+    def _load_json(self) -> dict:
+        """
+        Load Json from ./json/parsed_threads.json
+        Returns:
+            dict: [json dict]
+        """
+        log.debug("Loading from Json")
+        with open("./json/parsed_threads.json", "r") as fp:
+            return json.load(fp)
+
+    def _write_json(self, _data: dict):
+        """
+        Write Parsed data to ./json/parsed_threads.json
+        Args:
+            _data (dict): [json data to write]
+        """
+        log.debug("Writing to Json")
+        with open("./json/parsed_threads.json", "w") as fp:
+            json.dump(_data, fp, indent=4)
