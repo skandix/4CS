@@ -3,6 +3,7 @@ dl/*
 logs/*
 .vscode
 Links.txt
+parsed_threads.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
