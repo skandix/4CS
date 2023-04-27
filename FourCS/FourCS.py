@@ -7,10 +7,7 @@ import os
 
 from fake_useragent import UserAgent
 from datetime import datetime
-from loguru import logger  # best fucking log lib
-
-logger.add("../logs/4CS_Error.log", rotation="1 Week", compression="zip", level="ERROR")
-logger.add("../logs/4CS.log", rotation="1 Week", compression="zip", level="INFO")
+from loguru import logger as log
 
 
 class fourCS:
@@ -21,32 +18,32 @@ class fourCS:
         self.extension = extension
         self.search_term = search_term
 
-        self._boards_url = "https://a.4cdn.org/boards.json"
-        self._valid_boards = []
+        self.__boards_url = "https://a.4cdn.org/boards.json"
+        self.__valid_boards = []
 
         self._valid_search_type = ["img", "text", "links"]
-        self._valid_threads = []
-        self._empty_threads = []
-        self._unique = []
-        self.replies_threshold = 5  # amount of replies a thread need to be NOT EMPTY
+        self.__valid_threads = []
+        self.__empty_threads = []
+        self.__unique = []
+        self.replies_threshold = 1
 
-        if self.path != "":
-            self.path = path
-        elif self.path:
+        if self.path == "":
             self.path = "../dl"
+        else:
+            self.path = path
 
         if self.search_type not in self._valid_search_type:
-            logger.error(
-                f"Please Supply a Valid Search Type.\nAvaliable Search Types \
+            log.error(
+                f"Please Supply a Valid Search Type.\nAvaliable Search Types \n \
                 {self._valid_search_type}"
             )
-            quit()
+            quit(137)
 
         self.session = requests.Session()
         self.user_agent = UserAgent()
         self.session.headers.update({"User-Agent": self.user_agent.random})
 
-    @logger.catch
+    @log.catch
     def fetch_threads(self) -> dict:
         """
         fetch_threads fetch all threads from a specific board on 4chan
@@ -60,7 +57,7 @@ class fourCS:
             for thread in thread_collection["threads"]:
                 yield thread
 
-    @logger.catch
+    @log.catch
     def fetch_thread_subject(self, thread_id: str):
         subject = f"https://a.4cdn.org/{self.board}/thread/{thread_id}.json"
         try:
@@ -71,14 +68,14 @@ class fourCS:
         except Exception:  # this means thread is dead (it returns json decode error)
             return thread_id
 
-    @logger.catch
+    @log.catch
     def list_valid_boards(self):
         boards = self.session.get(self._boards_url).json()["boards"]
         for board in boards:
-            self._valid_boards.append(board["board"])
-        return self._valid_boards
+            self.__valid_boards.append(board["board"])
+        return self.__valid_boards
 
-    @logger.catch
+    @log.catch
     def fetch_specific_thread(self, thread_id: int):
         """
         fetch_specific_thread
@@ -94,8 +91,6 @@ class fourCS:
         try:
             for thread_page in self.session.get(thread).json()["posts"]:
                 if self.search_type == "img":
-
-                    # TODO: implement searching the threads for specific keywords..
                     try:
                         if self.extension == thread_page["ext"]:
                             yield (
@@ -105,7 +100,9 @@ class fourCS:
                             yield (
                                 f"https://i.4cdn.org/{self.board}/{thread_page['tim']}{thread_page['ext']}"
                             )
-                    except KeyError as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
+                    except (
+                        KeyError
+                    ) as Error:  # this usually means that the post doesn't have the key, meaning it doesn't contain an image
                         ...
 
                 elif self.search_type == "text":
@@ -141,24 +138,24 @@ class fourCS:
         Returns:
             [str]: [return clean text, without html]
         """
-        loot = re.sub("<.*?>", "", text).replace(">", "")
+        loot = re.sub("<.*?>", " ", text)
         return loot
 
-    def sanitize_text(self, loot: str):
+    def sanitize_text(self, text: str):
         """
         sanitize_text
 
         Sanitize the text from html tags, and unwanted unicode
 
         Args:
-            loot (str): [text]
+            text (str): [text]
 
         Returns:
             [str]: [sanitized string]
         """
         # sanitize text if strange unicode happens
 
-        # loot = html.unescape(loot) # render "unicode" such as gt and amp signs
+        # text = html.unescape(text) # render "unicode" such as gt and amp signs
         unicode_code = [
             ('<a href="\#\w+" class="quotelink">>>\d+', ""),
             ("<.*?>", " "),
@@ -166,8 +163,8 @@ class fourCS:
         ]
 
         for old, new in unicode_code:
-            loot = re.sub(old, new, loot)
-        return loot
+            text = re.sub(old, new, text)
+        return text
 
     # can convert remove and find urls to a higher order function, to avoid repeating code.
     def remove_urls(self, loot):
@@ -185,7 +182,7 @@ class fourCS:
         if match:
             return match.group()
 
-    @logger.catch
+    @log.catch
     # TODO: this function can be refactored to make use of exsisting code, and not dupe existing code.
     def download(self, content):
         if self.search_type == "img":
@@ -206,8 +203,8 @@ class fourCS:
                 file.write(f"{content}\n")
 
     def is_it_unique(self, text: str):
-        if text not in self._unique:
-            self._unique.append(text)
+        if text not in self.__unique:
+            self.__unique.append(text)
             return True
         else:
             return False
@@ -222,7 +219,7 @@ class fourCS:
 
         ...
 
-    @logger.catch
+    @log.catch
     def generate_directories(self, foldername: str):
         """
         generate_directories
@@ -236,22 +233,22 @@ class fourCS:
 
         # TODO: cleanup this spaghetti code... yikes
         if os.path.isdir(f"{self.path}"):
-            logger.info(f"{self.path} Is existsing.")
+            log.info(f"{self.path} Is existsing.")
             os.chdir(self.path)
             if os.path.isdir(foldername):
-                logger.info(f"Folder '{foldername}' Already Exists.")
+                log.info(f"Folder '{foldername}' Already Exists.")
                 os.chdir(foldername)
             else:
                 os.mkdir(foldername)
-                logger.info(f"Created directory {foldername}")
+                log.info(f"Created directory {foldername}")
                 os.chdir(foldername)
-                logger.info(f"Changed Working directory to {foldername} \n")
+                log.info(f"Changed Working directory to {foldername} \n")
         elif os.path.isdir(f"{self.path}") == False:
-            logger.info(f"{self.path} Does not exists.")
+            log.info(f"{self.path} Does not exists.")
             os.mkdir(self.path)
-            logger.info(f"Creating {self.path}.")
+            log.info(f"Creating {self.path}.")
             os.chdir(self.path)
-            logger.info(f"Changed Working directory to {self.path} \n")
+            log.info(f"Changed Working directory to {self.path} \n")
 
     def find_empty_threads(self):
         """
@@ -262,11 +259,11 @@ class fourCS:
         Returns:
             [list]: [list containing valid and non-empty threads]
         """
-        logger.info(f"Looking for Empty Threads!")
+        log.info(f"Looking for Empty Threads!")
         for thread in self.fetch_threads():
             if thread["replies"] >= self.replies_threshold:
-                # logger.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
-                self._valid_threads.append(thread["no"])
+                log.debug(f'{thread["no"]} - Replies: {thread["replies"]}')
+                self.__valid_threads.append(thread["no"])
             else:
-                self._empty_threads.append(thread["no"])
-        return self._valid_threads
+                self.__empty_threads.append(thread["no"])
+        return self.__valid_threads
